@@ -1,16 +1,29 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+from streamlit_gsheets import GSheetsConnection # 新增這個
 
-# 設定網頁標題
-st.set_page_config(page_title="機車試乘活動報名系統", layout="centered")
+# 1. 建立連線
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 模擬資料庫 (實際使用時建議連結 Google Sheets 或資料庫)
-if 'db' not in st.session_state:
-    st.session_state.db = pd.DataFrame(columns=['姓名', '識別代號', '立書人', '身份證字號', '電話', '試乘機種', '品牌宣導'])
+# 2. 讀取現有資料 (用來檢查名額)
+# 注意：這裡的 spreadsheet 網址要換成你剛剛複製的
+df = conn.read(spreadsheet="https://docs.google.com/spreadsheets/d/1nnVGBTNKTEdo_h2Vt2Jo1avIlB70oE8DAaFveXCBCiM/edit?usp=sharing", ttl="0")
 
-if 'page' not in st.session_state:
-    st.session_state.page = 1
+# --- (中間的頁面邏輯保持不變，只需修改最後存檔的部分) ---
+
+# 3. 修改最後「完成報名」的邏輯
+if st.button("完成報名"):
+    if selected_model in available_options:
+        # 準備新資料
+        new_row = pd.DataFrame([st.session_state.temp_data])
+        # 合併舊資料與新資料
+        updated_df = pd.concat([df, new_row], ignore_index=True)
+        # 寫回 Google Sheets
+        conn.update(spreadsheet="https://docs.google.com/spreadsheets/d/1nnVGBTNKTEdo_h2Vt2Jo1avIlB70oE8DAaFveXCBCiM/edit?usp=sharing", data=updated_df)
+        
+        st.success("報名成功！資料已同步至雲端。")
+        st.balloons()
 
 # 設定各機種名額上限
 CAPACITY = {"CUXIE": 50, "CGYNUS": 50, "NMAX": 50, "大型重機": 50}
@@ -142,3 +155,4 @@ with st.expander("🔐 管理員後台 (下載數據)"):
             mime="text/csv",
 
         )
+
