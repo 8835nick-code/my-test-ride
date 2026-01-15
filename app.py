@@ -98,43 +98,56 @@ elif st.session_state.page == 2:
             # 這裡可以選擇不存入資料庫，直接結束
 
 
-# 第三頁：機種選擇與品牌宣導
-elif st.session_state.page == 3:
+# 第三頁：機種選擇 (名額控管)
+elif st.session_state['page'] == 3:
     st.title("Step 3: 機種與宣導")
     
-    # 計算剩餘名額
-    counts = st.session_state.db['試乘機種'].value_counts()
+    # --- 關鍵修正：使用 existing_data 而不是 st.session_state.db ---
+    # 這裡計算目前 Google 試算表中各機種的已報名人數
+    if not existing_data.empty and '試乘機種' in existing_data.columns:
+        counts = existing_data['試乘機種'].value_counts()
+    else:
+        counts = pd.Series() # 如果還沒有人報名，就建立空的計數器
     
-    def get_label(model):
-        remaining = CAPACITY[model] - counts.get(model, 0)
-        return f"{model} (剩餘名額: {remaining})" if remaining > 0 else f"{model} (已額滿)"
-
+    CAPACITY = {"CUXIE": 50, "CGYNUS": 50, "NMAX": 50, "大型重機": 50}
     options = ["CUXIE", "CGYNUS", "NMAX", "大型重機"]
-    # 檢查哪些選項已額滿
-    available_options = [opt for opt in options if (CAPACITY[opt] - counts.get(opt, 0)) > 0]
     
-    selected_model = st.radio("1. 欲試乘機種 (每項限50人)", options, 
-                              index=None,
-                              captions=["" if opt in available_options else "已額滿不可選" for opt in options])
+    # 建立選項標籤，顯示剩餘名額
+    def get_label(opt):
+        already_taken = counts.get(opt, 0)
+        rem = CAPACITY[opt] - already_taken
+        if rem <= 0:
+            return f"{opt} (已額滿)"
+        return f"{opt} (剩餘名額: {rem})"
+
+    selected_model = st.radio("1. 欲試乘機種", options, format_func=get_label)
     
     if selected_model == "大型重機":
-        st.warning("⚠️ 須具備大型重型機車駕照，試乘當天將進行查驗。")
+        st.warning("⚠️ 須具備大型重型機車駕照，當天查驗")
 
     promo = st.radio("2. 品牌宣導", ["參加", "不參加"])
 
-    if st.button("完成報名"):
-        if selected_model in available_options:
-            st.session_state.temp_data.update({"試乘機種": selected_model, "品牌宣導": promo})
-            # 存入資料庫
-            new_entry = pd.DataFrame([st.session_state.temp_data])
-            st.session_state.db = pd.concat([st.session_state.db, new_entry], ignore_index=True)
-            st.success("報名成功！")
-            st.balloons()
-            if st.button("回首頁"):
-                st.session_state.page = 1
-                st.rerun()
+    if st.button("確認提交報名"):
+        # 再次檢查該機種是否還有名額
+        current_taken = counts.get(selected_model, 0)
+        if current_taken < CAPACITY[selected_model]:
+            # 更新暫存資料
+            st.session_state['temp_data'].update({
+                "試乘機種": selected_model, 
+                "品牌宣導": promo
+            })
+            
+            # --- 寫入 Google Sheets ---
+            new_row = pd.DataFrame([st.session_state['temp_data']])
+            # 確保欄位順序正確
+            final_df = pd.concat([existing_data, new_row], ignore_index=True)
+            conn.update(spreadsheet=SHEET_URL, data=final_df)
+            
+            st.success("報名成功！資料已同步至雲端。")
+            st.session_state['page'] = 4
+            st.rerun()
         else:
-            st.error("該機種已額滿，請選擇其他機種")
+            st.error("抱歉，該機種剛剛已額滿，請選擇其他機種。")
 
 # --- 後台下載區 (隱藏區塊) ---
 st.markdown("---")
@@ -153,5 +166,6 @@ with st.expander("🔐 管理員後台 (下載數據)"):
             mime="text/csv",
 
         )
+
 
 
