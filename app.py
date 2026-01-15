@@ -50,8 +50,8 @@ elif st.session_state['page'] == 3:
     selected_model = st.radio("1. 欲試乘機種", ["CUXIE", "CGYNUS", "NMAX", "大型重機"])
     promo = st.radio("2. 品牌宣導", ["參加", "不參加"])
 
-    if st.button("確認提交報名"):
-        # 建立 Google 表單提交參數
+if st.button("確認提交報名"):
+        # 建立參數 (確保 entry ID 與你之前提供的一致)
         params = (
             f"?entry.361499099={st.session_state['temp_data']['姓名']}"
             f"&entry.1344609340={st.session_state['temp_data']['識別代號']}"
@@ -62,10 +62,17 @@ elif st.session_state['page'] == 3:
             f"&entry.1133738858={promo}"
             f"&submit=Submit"
         )
-        full_url = "https://docs.google.com/forms/d/e/1FAIpQLSdczkNBFSVmUipEjm5zYwQLAKOzSJUz4ET7Wyqt4zNSRi-PMw/formResponse" + params
         
-        # 使用 iframe 進行背景提交
-        st.markdown(f'<iframe src="{full_url}" style="display:none;"></iframe>', unsafe_allow_html=True)
+        # 組合完整網址
+        base_url = "https://docs.google.com/forms/d/e/1FAIpQLSdczkNBFSVmUipEjm5zYwQLAKOzSJUz4ET7Wyqt4zNSRi-PMw/viewform?usp=pp_url&entry.361499099=1&entry.1344609340=2&entry.1297329962=3&entry.309920621=4&entry.1566749837=5&entry.371178622=6&entry.1133738858=7"
+        target_url = base_url + params
+        
+        # 使用 HTML 進行提交
+        st.components.v1.html(
+            f'<img src="{target_url}" style="display:none;" onload="console.log(\'submitted\')">',
+            height=0,
+        )
+        
         st.balloons()
         st.success("報名資訊已送出！")
         st.session_state['page'] = 4
@@ -92,4 +99,5 @@ with st.expander("🔐 管理員後台"):
         # ⚠️ 請把下方的網址換成你的 Google 試算表網址
         sheet_url = "你的Google試算表網址" 
         st.markdown(f'[👉 點此開啟 Google 試算表資料庫]({sheet_url})')
+
 
